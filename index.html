@@ -462,18 +462,18 @@
 
         let currentUser = null;
         let currentLanguage = 'id'; // Default language
-        let dynamicPromptSuggestions = []; // Make dynamicPromptSuggestions a global variable
+        let dynamicPromptSuggestions = []; // Make dynamicPromptSuggestions a global variable, initialized as empty array
 
         // Hardcoded credentials for local validation
         const ADMIN_NAME = "admin";
         const ADMIN_PASSWORD = "buntutgrup";
 
         // API Keys
-        const GEMINI_API_KEY = "AIzaSyCeC4RzS5_GETZO0Ql8tJehZtV-rREnrpI";
+        const GEMINI_API_KEY = "AIzaSyCeC4RzS5_GETZO0Ql8tJehZtV-rREnrpI"; // API Google
         const DEEPAI_API_KEY = "eb2dbb43-7358-4ca8-a045-e43d7b1011e0"; // Updated DeepAI API Key
         const DEEPAI_API_URL = "https://api.deepai.org/api/text2img";
 
-        // DOM Elements
+        // DOM Elements (Ensure all elements are defined after they exist in HTML)
         const appNameEl = document.getElementById('app-name');
         const languageToggleBtn = document.getElementById('language-toggle');
         const authErrorEl = document.getElementById('auth-error');
@@ -544,7 +544,7 @@
         const confirmYesBtn = document.getElementById('confirm-yes-btn');
         const confirmNoBtn = document.getElementById('confirm-no-btn');
 
-        // Initial language and UI setup
+        // Initial language and UI setup (moved inside window.onload or DOMContentLoaded)
         let isRegistering = false;
         let isChatBoxOpen = false;
         let chatHistory = [];
@@ -621,7 +621,7 @@
             // Re-select the correct style after updating options
             styleSelect.value = styleSelect.dataset.currentValue || 'Realistic'; // Use a data attribute to store current value
 
-            // Pass the global dynamicPromptSuggestions to the update function
+            // Pass the global dynamicPromptSuggestions (which is now guaranteed to be an array)
             updateDynamicPromptSuggestions(dynamicPromptSuggestions.length > 0 ? dynamicPromptSuggestions : staticPromptSuggestionsList);
         }
 
@@ -664,7 +664,7 @@
 
                 if (name === ADMIN_NAME && password === ADMIN_PASSWORD) {
                     // Check if Firebase auth and db objects are available and initialized
-                    if (!firebaseInitialized) {
+                    if (!firebaseInitialized || !auth || !db) {
                         setAuthError("Layanan Firebase tidak diinisialisasi sepenuhnya. Mohon tunggu sebentar dan coba lagi.");
                         return;
                     }
@@ -927,6 +927,8 @@
                 if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
                     const rawSuggestions = result.candidates[0].content.parts[0].text;
                     const parsedSuggestions = rawSuggestions.split('\n').filter(line => line.match(/^\d+\.\s/)).map(line => line.replace(/^\d+\.\s/, ''));
+                    // Update the global dynamicPromptSuggestions variable
+                    dynamicPromptSuggestions = parsedSuggestions;
                     updateDynamicPromptSuggestions(parsedSuggestions);
                 } else {
                     setImageError(`Failed to get suggestions: ${result.error?.message || "Unknown error"}`);
@@ -943,7 +945,7 @@
 
         function updateDynamicPromptSuggestions(suggestions) {
             dynamicPromptSuggestionsContainer.innerHTML = '';
-            if (suggestions.length === 0) {
+            if (!suggestions || suggestions.length === 0) { // Check for null/undefined suggestions too
                 dynamicPromptSuggestionsContainer.textContent = translations[currentLanguage].noSavedPrompts; // Re-use translation for no suggestions
                 return;
             }
@@ -1204,16 +1206,11 @@
         toggleChatBtn.addEventListener('click', toggleChatBox);
 
         // Initial app load logic
-        // Moved the core Firebase initialization logic into window.onload
+        // This ensures all global JS variables are defined before applyTranslations runs.
         window.addEventListener('load', () => {
             applyTranslations(); // Apply initial translations
 
-            // IMPORTANT: Firebase needs to be initialized ONCE, and `auth` and `db`
-            // must be available globally or passed correctly.
-            // The `try...catch` block for `initializeApp` handles the primary initialization.
-
-            // Use onAuthStateChanged to react to auth state, including initial anonymous login from Canvas
-            // This listener will ensure `auth.currentUser` is set once Firebase is ready.
+            // Listen for auth state changes to manage UI visibility and Firestore data fetching
             onAuthStateChanged(auth, (firebaseUser) => {
                 if (firebaseUser) {
                     currentUser = { uid: firebaseUser.uid, displayName: 'anonymous', isAnonymous: true };
@@ -1222,12 +1219,13 @@
                     mainView.classList.remove('hidden');
                     fetchSavedPrompts();
                 } else {
+                    // If no user (after initial check or sign out), show login view
                     loginView.classList.remove('hidden');
                     mainView.classList.add('hidden');
                 }
 
                 // If `initialAuthToken` is provided by the environment and no user is currently signed in,
-                // try to sign in with the custom token.
+                // try to sign in with the custom token. This is often handled by Canvas implicitly.
                 if (initialAuthToken && !auth.currentUser) {
                     signInWithCustomToken(auth, initialAuthToken)
                         .then(() => console.log("Signed in with custom token."))
