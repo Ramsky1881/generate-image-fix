@@ -660,22 +660,22 @@
                 if (!password) throw new Error(t.passwordRequired);
 
                 if (name === ADMIN_NAME && password === ADMIN_PASSWORD) {
-                    // Ensure auth is defined before accessing auth.currentUser
-                    if (!auth) {
-                        setAuthError("Firebase authentication service is not available. Please try again.");
+                    // Ensure auth is initialized before proceeding
+                    if (!auth || typeof auth.currentUser === 'undefined') { // More robust check
+                        setAuthError("Firebase authentication service is not fully initialized. Please wait a moment and try again.");
                         return;
                     }
-                    // Ensure an anonymous Firebase user exists for Firestore operations
+
                     let firebaseUser = auth.currentUser;
-                    if (!firebaseUser) {
+                    if (!firebaseUser || firebaseUser.isAnonymous === false) { // If not anonymous or not signed in, sign in anonymously first.
                         firebaseUser = await signInAnonymously(auth);
                     }
+                    
                     currentUser = { uid: firebaseUser.uid, displayName: ADMIN_NAME, isAnonymous: false };
                     userIdDisplay.textContent = `${t.userId} ${currentUser.uid}`;
                     loginView.classList.add('hidden');
                     mainView.classList.remove('hidden');
                     console.log(t.loginSuccess);
-                    // Fetch saved prompts after successful login
                     fetchSavedPrompts();
                 } else {
                     setAuthError(t.invalidCredentials);
@@ -697,12 +697,11 @@
                 userIdDisplay.textContent = '';
                 loginView.classList.remove('hidden');
                 mainView.classList.add('hidden');
-                // Ensure auth is defined before attempting signOut
                 if (auth && auth.currentUser) {
                     await signOut(auth);
                 }
                 console.log(translations[currentLanguage].logout);
-                savedPromptsList.innerHTML = `<p id="no-saved-prompts-text" class="text-gray-500">${translations[currentLanguage].noSavedPrompts}</p>`; // Clear saved prompts on logout
+                savedPromptsList.innerHTML = `<p id="no-saved-prompts-text" class="text-gray-500">${translations[currentLanguage].noSavedPrompts}</p>`;
             } catch (error) {
                 setAuthError(`Logout failed: ${error.message}`);
                 console.error("Logout failed:", error);
@@ -740,7 +739,7 @@
                 refiningPromptStatus.classList.add('hidden');
                 setImageError(translations[currentLanguage].refiningPrompt + `: ${error.message}`);
                 console.error("Prompt refinement failed:", error);
-                return promptToRefine; // Fallback to original prompt if refinement fails
+                return promptToRefine;
             }
         }
 
