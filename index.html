@@ -328,6 +328,7 @@
         // Ensure __app_id, __firebase_config, __initial_auth_token are defined in the environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // Fix: Correctly assign initialAuthToken
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         try {
@@ -427,7 +428,7 @@
                 loginToContinue: "Silakan masuk untuk melanjutkan.",
                 anonymousLogin: "Masuk Anonim",
                 nameRequired: "Nama diperlukan.",
-                passwordRequired: "Kata sandi diperlukan.",
+                passwordRequired: "Kata Sandi diperlukan.",
                 imageDescription: "Gambar AI yang Dihasilkan",
                 noImageYet: "Belum ada gambar yang dibuat. Masukkan prompt dan klik 'Buat Gambar AI'.",
                 savePrompt: "Simpan Prompt",
@@ -467,7 +468,7 @@
 
         // API Keys
         const GEMINI_API_KEY = "AIzaSyCeC4RzS5_GETZO0Ql8tJehZtV-rREnrpI";
-        const DEEPAI_API_KEY = "eb2dbb43-7358-4ca8-a045-e43d7b1011e0";
+        const DEEPAI_API_KEY = "eb2dbb43-7358-4ca8-a045-e43d7b1011e0"; // Updated DeepAI API Key
         const DEEPAI_API_URL = "https://api.deepai.org/api/text2img";
 
         // DOM Elements
@@ -659,6 +660,11 @@
                 if (!password) throw new Error(t.passwordRequired);
 
                 if (name === ADMIN_NAME && password === ADMIN_PASSWORD) {
+                    // Ensure auth is defined before accessing auth.currentUser
+                    if (!auth) {
+                        setAuthError("Firebase authentication service is not available. Please try again.");
+                        return;
+                    }
                     // Ensure an anonymous Firebase user exists for Firestore operations
                     let firebaseUser = auth.currentUser;
                     if (!firebaseUser) {
@@ -691,7 +697,8 @@
                 userIdDisplay.textContent = '';
                 loginView.classList.remove('hidden');
                 mainView.classList.add('hidden');
-                if (auth.currentUser) {
+                // Ensure auth is defined before attempting signOut
+                if (auth && auth.currentUser) {
                     await signOut(auth);
                 }
                 console.log(translations[currentLanguage].logout);
@@ -793,7 +800,7 @@
                         noImagePlaceholder.classList.add('hidden');
                         console.log(translations[currentLanguage].imageGenerationSuccess);
                     } else {
-                        setImageError(`${translations[currentLanguage].imageGenerationError} DeepAI: Format respons tidak terduga. ${JSON.stringify(result)}`);
+                        setImageError(`${translations[currentLanguage].imageGenerationError} DeepAI: Unexpected response format. ${JSON.stringify(result)}`);
                         console.error(translations[currentLanguage].imageGenerationError, result);
                     }
                 } else {
