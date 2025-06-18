@@ -328,7 +328,6 @@
         // Ensure __app_id, __firebase_config, __initial_auth_token are defined in the environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        // Fix: Correctly assign initialAuthToken
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         try {
@@ -337,6 +336,8 @@
             db = getFirestore(app);
         } catch (error) {
             console.error("Error initializing Firebase:", error);
+            // Optionally: alert the user or display a message in the UI if Firebase init fails
+            // setAuthError("Gagal menginisialisasi Firebase. Coba muat ulang aplikasi.");
         }
 
         // Translations object (same as before)
@@ -660,11 +661,18 @@
                 if (!password) throw new Error(t.passwordRequired);
 
                 if (name === ADMIN_NAME && password === ADMIN_PASSWORD) {
-                    // This block will execute after Firebase is likely initialized from the window.onload
-                    // We directly use auth.currentUser here, which should be available
+                    // Ensure Firebase auth object is ready before attempting to use it
+                    // The onAuthStateChanged listener handles the initial auth state.
+                    // If auth or db are null at this point, it means Firebase init failed.
+                    if (!auth || !db) { // Check if both auth and db are initialized
+                        setAuthError("Layanan Firebase tidak diinisialisasi sepenuhnya. Mohon tunggu sebentar dan coba lagi.");
+                        return;
+                    }
+
+                    // Ensure an anonymous Firebase user exists for Firestore operations
                     let firebaseUser = auth.currentUser;
-                    if (!firebaseUser || firebaseUser.isAnonymous === false) { 
-                        firebaseUser = await signInAnonymously(auth); // Ensure an anonymous user is signed in
+                    if (!firebaseUser) { // If no user is signed in (including anonymously), sign in anonymously
+                        firebaseUser = await signInAnonymously(auth);
                     }
                     
                     currentUser = { uid: firebaseUser.uid, displayName: ADMIN_NAME, isAnonymous: false };
