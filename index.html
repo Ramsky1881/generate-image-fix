@@ -324,6 +324,7 @@
         let app;
         let auth;
         let db;
+        let firebaseInitialized = false; // New flag for Firebase initialization status
 
         // Ensure __app_id, __firebase_config, __initial_auth_token are defined in the environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -334,10 +335,10 @@
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
+            firebaseInitialized = true; // Set flag to true if initialization is successful
         } catch (error) {
             console.error("Error initializing Firebase:", error);
-            // Optionally: alert the user or display a message in the UI if Firebase init fails
-            // setAuthError("Gagal menginisialisasi Firebase. Coba muat ulang aplikasi.");
+            // setAuthError("Gagal menginisialisasi Firebase. Coba muat ulang aplikasi."); // Keep this commented unless explicitly requested
         }
 
         // Translations object (same as before)
@@ -661,17 +662,15 @@
                 if (!password) throw new Error(t.passwordRequired);
 
                 if (name === ADMIN_NAME && password === ADMIN_PASSWORD) {
-                    // Ensure Firebase auth object is ready before attempting to use it
-                    // The onAuthStateChanged listener handles the initial auth state.
-                    // If auth or db are null at this point, it means Firebase init failed.
-                    if (!auth || !db) { // Check if both auth and db are initialized
+                    // Check if Firebase auth and db objects are available
+                    if (!auth || !db) {
                         setAuthError("Layanan Firebase tidak diinisialisasi sepenuhnya. Mohon tunggu sebentar dan coba lagi.");
                         return;
                     }
-
-                    // Ensure an anonymous Firebase user exists for Firestore operations
+                    
                     let firebaseUser = auth.currentUser;
-                    if (!firebaseUser) { // If no user is signed in (including anonymously), sign in anonymously
+                    if (!firebaseUser) {
+                        // Attempt anonymous sign-in if no user is present
                         firebaseUser = await signInAnonymously(auth);
                     }
                     
@@ -1208,10 +1207,11 @@
         window.addEventListener('load', () => {
             applyTranslations(); // Apply initial translations
 
-            // IMPORTANT: Ensure Firebase is initialized before setting up listeners or making calls
-            // This part is already handled by the global `app`, `auth`, `db` variables setup.
+            // IMPORTANT: Firebase needs to be initialized ONCE, and `auth` and `db`
+            // must be available globally or passed correctly.
+            // The `try...catch` block for `initializeApp` handles the primary initialization.
 
-            // Listen for auth state changes immediately upon load
+            // Use onAuthStateChanged to react to auth state, including initial anonymous login from Canvas
             onAuthStateChanged(auth, (firebaseUser) => {
                 if (firebaseUser) {
                     currentUser = { uid: firebaseUser.uid, displayName: 'anonymous', isAnonymous: true };
@@ -1223,17 +1223,15 @@
                     loginView.classList.remove('hidden');
                     mainView.classList.add('hidden');
                 }
-                // Now that onAuthStateChanged has run once, we can try initial anonymous sign-in or custom token sign-in
-                // This ensures 'auth.currentUser' is ready for `handleLogin` calls later.
-                if (initialAuthToken && !auth.currentUser) { // Only try custom token if not already signed in
+
+                // If `initialAuthToken` is provided by the environment and no user is currently signed in,
+                // try to sign in with the custom token.
+                if (initialAuthToken && !auth.currentUser) {
                     signInWithCustomToken(auth, initialAuthToken)
                         .then(() => console.log("Signed in with custom token."))
                         .catch(error => console.error("Error signing in with custom token:", error));
-                } else if (!auth.currentUser) { // If no custom token and no current user, sign in anonymously
-                    signInAnonymously(auth)
-                        .then(() => console.log("Signed in anonymously during load."))
-                        .catch(error => console.error("Error signing in anonymously during load:", error));
                 }
+                // No automatic anonymous sign-in here. It will only happen via handleLogin if needed.
             });
         });
 
