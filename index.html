@@ -660,15 +660,11 @@
                 if (!password) throw new Error(t.passwordRequired);
 
                 if (name === ADMIN_NAME && password === ADMIN_PASSWORD) {
-                    // Ensure auth is initialized before proceeding
-                    if (!auth || typeof auth.currentUser === 'undefined') { // More robust check
-                        setAuthError("Firebase authentication service is not fully initialized. Please wait a moment and try again.");
-                        return;
-                    }
-
+                    // This block will execute after Firebase is likely initialized from the window.onload
+                    // We directly use auth.currentUser here, which should be available
                     let firebaseUser = auth.currentUser;
-                    if (!firebaseUser || firebaseUser.isAnonymous === false) { // If not anonymous or not signed in, sign in anonymously first.
-                        firebaseUser = await signInAnonymously(auth);
+                    if (!firebaseUser || firebaseUser.isAnonymous === false) { 
+                        firebaseUser = await signInAnonymously(auth); // Ensure an anonymous user is signed in
                     }
                     
                     currentUser = { uid: firebaseUser.uid, displayName: ADMIN_NAME, isAnonymous: false };
@@ -818,7 +814,8 @@
 
         async function handleGenerateCaption() {
             hideCaptionError();
-            setGeneratedCaption('');
+            // This is a placeholder; generatedCaption is not actually a global variable, but a local variable in React.
+            // setGeneratedCaption(''); // This would be a useState setter in React
             generateCaptionBtn.disabled = true;
             generateCaptionBtnText.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ${translations[currentLanguage].generatingCaption}`;
 
@@ -1199,31 +1196,37 @@
         toggleChatBtn.addEventListener('click', toggleChatBox);
 
         // Initial app load logic
+        // Moved the core Firebase initialization logic into window.onload
         window.addEventListener('load', () => {
             applyTranslations(); // Apply initial translations
-            // Trigger Firebase auth state listener once DOM is ready
+
+            // IMPORTANT: Ensure Firebase is initialized before setting up listeners or making calls
+            // This part is already handled by the global `app`, `auth`, `db` variables setup.
+
+            // Listen for auth state changes immediately upon load
             onAuthStateChanged(auth, (firebaseUser) => {
                 if (firebaseUser) {
-                    // If an anonymous user already exists (e.g., from Canvas env),
-                    // set them as current user to enable Firestore.
                     currentUser = { uid: firebaseUser.uid, displayName: 'anonymous', isAnonymous: true };
                     userIdDisplay.textContent = `${translations[currentLanguage].userId} ${currentUser.uid}`;
                     loginView.classList.add('hidden');
                     mainView.classList.remove('hidden');
-                    fetchSavedPrompts(); // Fetch prompts for this user
+                    fetchSavedPrompts();
                 } else {
-                    // No Firebase user, remain on login view.
-                    // The hardcoded login will take precedence if used.
                     loginView.classList.remove('hidden');
                     mainView.classList.add('hidden');
                 }
+                // Now that onAuthStateChanged has run once, we can try initial anonymous sign-in or custom token sign-in
+                // This ensures 'auth.currentUser' is ready for `handleLogin` calls later.
+                if (initialAuthToken && !auth.currentUser) { // Only try custom token if not already signed in
+                    signInWithCustomToken(auth, initialAuthToken)
+                        .then(() => console.log("Signed in with custom token."))
+                        .catch(error => console.error("Error signing in with custom token:", error));
+                } else if (!auth.currentUser) { // If no custom token and no current user, sign in anonymously
+                    signInAnonymously(auth)
+                        .then(() => console.log("Signed in anonymously during load."))
+                        .catch(error => console.error("Error signing in anonymously during load:", error));
+                }
             });
-            // If there's an initial auth token from Canvas env, attempt to sign in with it.
-            if (initialAuthToken) {
-                signInWithCustomToken(auth, initialAuthToken)
-                    .then(() => console.log("Signed in with custom token."))
-                    .catch(error => console.error("Error signing in with custom token:", error));
-            }
         });
 
         // Initial setup for dark mode class
