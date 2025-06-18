@@ -338,7 +338,6 @@
             firebaseInitialized = true; // Set flag to true if initialization is successful
         } catch (error) {
             console.error("Error initializing Firebase:", error);
-            // setAuthError("Gagal menginisialisasi Firebase. Coba muat ulang aplikasi."); // Keep this commented unless explicitly requested
         }
 
         // Translations object (same as before)
@@ -463,6 +462,7 @@
 
         let currentUser = null;
         let currentLanguage = 'id'; // Default language
+        let dynamicPromptSuggestions = []; // Make dynamicPromptSuggestions a global variable
 
         // Hardcoded credentials for local validation
         const ADMIN_NAME = "admin";
@@ -621,6 +621,7 @@
             // Re-select the correct style after updating options
             styleSelect.value = styleSelect.dataset.currentValue || 'Realistic'; // Use a data attribute to store current value
 
+            // Pass the global dynamicPromptSuggestions to the update function
             updateDynamicPromptSuggestions(dynamicPromptSuggestions.length > 0 ? dynamicPromptSuggestions : staticPromptSuggestionsList);
         }
 
@@ -662,15 +663,14 @@
                 if (!password) throw new Error(t.passwordRequired);
 
                 if (name === ADMIN_NAME && password === ADMIN_PASSWORD) {
-                    // Check if Firebase auth and db objects are available
-                    if (!auth || !db) {
+                    // Check if Firebase auth and db objects are available and initialized
+                    if (!firebaseInitialized) {
                         setAuthError("Layanan Firebase tidak diinisialisasi sepenuhnya. Mohon tunggu sebentar dan coba lagi.");
                         return;
                     }
                     
                     let firebaseUser = auth.currentUser;
-                    if (!firebaseUser) {
-                        // Attempt anonymous sign-in if no user is present
+                    if (!firebaseUser) { // If no user is signed in (including anonymously), sign in anonymously
                         firebaseUser = await signInAnonymously(auth);
                     }
                     
@@ -821,8 +821,9 @@
 
         async function handleGenerateCaption() {
             hideCaptionError();
-            // This is a placeholder; generatedCaption is not actually a global variable, but a local variable in React.
-            // setGeneratedCaption(''); // This would be a useState setter in React
+            // generatedCaption is not a global variable; it should be handled by textContent directly
+            imageCaptionTextContent.textContent = ''; // Clear previous caption
+
             generateCaptionBtn.disabled = true;
             generateCaptionBtnText.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ${translations[currentLanguage].generatingCaption}`;
 
@@ -1212,6 +1213,7 @@
             // The `try...catch` block for `initializeApp` handles the primary initialization.
 
             // Use onAuthStateChanged to react to auth state, including initial anonymous login from Canvas
+            // This listener will ensure `auth.currentUser` is set once Firebase is ready.
             onAuthStateChanged(auth, (firebaseUser) => {
                 if (firebaseUser) {
                     currentUser = { uid: firebaseUser.uid, displayName: 'anonymous', isAnonymous: true };
